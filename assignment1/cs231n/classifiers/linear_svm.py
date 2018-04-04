@@ -65,6 +65,7 @@ def svm_loss_vectorized(W, X, y, reg):
   - W: A numpy array of shape (D, C) containing weights.
   - X: A numpy array of shape (N, D) containing a minibatch of data.
   - y: A numpy array of shape (N,) containing training labels; y[i] = c means
+    that X[i] has label c, where 0 <= c < C.
   - reg: (float) regularization strength
   """
   loss = 0.0
@@ -79,18 +80,20 @@ def svm_loss_vectorized(W, X, y, reg):
   num_train = X.shape[0]
   # NxC, each row is train data each class score
   score = X.dot(W)
-  margins = np.maximum(0, score - score[y] + 1)
-  margins[y] = 1
+  # NxC
+  margins = np.maximum(0, (score.T - score[range(num_train), y]).T + 1)
+  # set all correct label score 1
+  # print(margins[0])
+  margins[range(num_train), y] = 0
   loss = np.sum(margins) / num_train
   # Add regularization to the loss.
-  loss += reg * np.sum(W * W)
+  # loss += reg * np.sum(W * W)
 
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
 
   #############################################################################
-  # TODO:                                                                     #
   # Implement a vectorized version of the gradient for the structured SVM     #
   # loss, storing the result in dW.                                           #
   #                                                                           #
@@ -99,13 +102,33 @@ def svm_loss_vectorized(W, X, y, reg):
   # loss.                                                                     #
   #############################################################################
 
-  # fuck = np.sum(margins > 0, axis=1) - 1
-  # print(fuck.shape)
-  margins_count = np.sum(margins > 0, axis=1) - 1
-  # dW = margins_count * X.T
-  dW[y] -= margins_count * X.T
-  print(dW[y].shape)
-  # print(dW.shape, dW.T[y].shape, X.shape, y.shape)
+  # sclar, (N,)
+  margins_count = np.sum(margins > 0, axis=1)
+  # D*C
+  X_plus = X.T.dot(margins > 0)
+  # N*C
+  X_minus_mask = np.zeros(margins.shape)
+  X_minus_mask[range(num_train), y] = margins_count
+  # D*C
+  X_minus = X.T.dot(X_minus_mask)
+  dW += X_plus
+  dW -= X_minus
+  dW /= num_train
+  # this is a for-loop solution
+  # it = np.nditer(margins, flags=['multi_index'])
+  # while not it.finished:
+  #   sample_index = it.multi_index[0]
+  #   claz = it.multi_index[1]
+  #   label = y[sample_index]
+  #   sample = X[sample_index]
+  #   # print(claz, label)
+  #   # print(it.multi_index[0], it.multi_index[1])
+  #   if it[0] > 0 and claz != label:
+  #     dW[:, label] -= sample
+  #     dW[:, claz] += sample
+  #   it.iternext()
+  # dW /= num_train
+
 
   #############################################################################
   #                             END OF YOUR CODE                              #
