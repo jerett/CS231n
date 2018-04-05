@@ -46,6 +46,7 @@ def svm_loss_naive(W, X, y, reg):
 
   # Add regularization to the loss.
   loss += reg * np.sum(W * W)
+  dW += reg * W
   #############################################################################
   # Compute the gradient of the loss function and store it dW.                #
   # Rather that first computing the loss and then computing the derivative,   #
@@ -87,7 +88,7 @@ def svm_loss_vectorized(W, X, y, reg):
   margins[range(num_train), y] = 0
   loss = np.sum(margins) / num_train
   # Add regularization to the loss.
-  # loss += reg * np.sum(W * W)
+  loss += reg * np.sum(W * W)
 
   #############################################################################
   #                             END OF YOUR CODE                              #
@@ -114,6 +115,7 @@ def svm_loss_vectorized(W, X, y, reg):
   dW += X_plus
   dW -= X_minus
   dW /= num_train
+  dW += reg * W
   # this is a for-loop solution
   # it = np.nditer(margins, flags=['multi_index'])
   # while not it.finished:
