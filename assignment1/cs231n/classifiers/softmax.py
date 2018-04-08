@@ -32,29 +32,26 @@ def softmax_loss_naive(W, X, y, reg):
   #############################################################################
   num_train = X.shape[0]
   num_classes = W.shape[1]
+  # print(W.shape, num_train, num_classes)
   for i in range(num_train):
     scores = X[i].dot(W)
     # shift array in case of dividing large number
-    # scores -= np.max(scores)
+    scores -= np.max(scores)
     label = y[i]
     loss -= scores[label]
     delta = .0
     for j in range(num_classes):
       delta += np.exp(scores[j])
     for j in range(num_classes):
-      g = np.exp(scores[j]) / delta
-      if g == 0:
-        print(i, j)
-      dW[i][j] = np.exp(scores[j]) / delta
+      dW[:, j] += (np.exp(scores[j]) / delta) * X[i]
       if j == label:
-        dW[i][j] -= 1
-      # print('dW:', i, j, dW[i][j])
+        dW[:, j] -= X[i]
     loss += np.log(delta)
 
   loss /= num_train
   loss += reg * np.sum(W * W)
-  # dW /= num_train
-  # dW += reg * W
+  dW /= num_train
+  dW += reg * W
   #############################################################################
   #                          END OF YOUR CODE                                 #
   #############################################################################
@@ -66,7 +63,12 @@ def softmax_loss_vectorized(W, X, y, reg):
   """
   Softmax loss function, vectorized version.
 
-  Inputs and outputs are the same as softmax_loss_naive.
+  Inputs:
+  - W: A numpy array of shape (D, C) containing weights.
+  - X: A numpy array of shape (N, D) containing a minibatch of data.
+  - y: A numpy array of shape (N,) containing training labels; y[i] = c means
+    that X[i] has label c, where 0 <= c < C.
+  - reg: (float) regularization strength
   """
   # Initialize the loss and gradient to zero.
   loss = 0.0
@@ -78,7 +80,28 @@ def softmax_loss_vectorized(W, X, y, reg):
   # here, it is easy to run into numeric instability. Don't forget the        #
   # regularization!                                                           #
   #############################################################################
-  pass
+  num_train = X.shape[0]
+  num_classes = W.shape[1]
+  # (N, C)
+  score = X.dot(W)
+  score = (score.T - np.max(score, axis=1)).T
+  # print(score.shape)
+  loss -= np.sum(score[range(num_train), y])
+  # (N,C)
+  exp_score = np.exp(score)
+  loss += np.sum(np.log(np.sum(exp_score, axis=1)))
+
+  exp_score = (exp_score.T / np.sum(exp_score, axis=1)).T
+  dW += X.T.dot(exp_score)
+  minus_mask = np.zeros(exp_score.shape)
+  minus_mask[range(num_train), y] = 1
+  # D*C
+  dW -= X.T.dot(minus_mask)
+
+  loss /= num_train
+  loss += reg * np.sum(W * W)
+  dW /= num_train
+  dW += reg * W
   #############################################################################
   #                          END OF YOUR CODE                                 #
   #############################################################################
