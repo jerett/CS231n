@@ -356,12 +356,38 @@ def conv_forward_naive(x, w, b, conv_param):
     # TODO: Implement the convolutional forward pass.                         #
     # Hint: you can use the function np.pad for padding.                      #
     ###########################################################################
-    pass
+    N, C, H, W = x.shape
+    F, _, HH, WW = w.shape
+    pad = conv_param['pad']
+    stride = conv_param['stride']
+    out_H = 1 + (H + 2 * pad - HH) // stride
+    out_W = 1 + (W + 2 * pad - WW) // stride
+    out = np.zeros((N, F, out_H, out_W))
+
+    pad_x = np.pad(x, ((0, ), (0, ), (pad, ), (pad,)), mode='constant', constant_values=0)
+    # print(x.shape, w.shape)
+    for sample_index in range(N):
+        sample = pad_x[sample_index]
+        for filter_index in range(F):
+            filter = w[filter_index]
+            for j in range(out_H):
+                for i in range(out_W):
+                    pad_window_center_i = stride * i + WW // 2
+                    pad_window_center_j = stride * j + HH // 2
+                    i0, i1 = pad_window_center_j - HH // 2, pad_window_center_j + HH - HH // 2
+                    j0, j1 = pad_window_center_i - WW // 2, pad_window_center_i + WW - WW // 2
+                    # print(i0, i1, j0, j1)
+                    # print('fuck', pad_window_center_i, pad_window_center_j, HH//2, WW//2, window.shape, filter.shape)
+                    window = sample[:, i0:i1, j0:j1]
+                    out[sample_index][filter_index][j][i] = np.sum(window * filter)
+                    out[sample_index][filter_index][j][i] += b[filter_index]
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
     cache = (x, w, b, conv_param)
     return out, cache
+
 
 
 def conv_backward_naive(dout, cache):
@@ -381,7 +407,89 @@ def conv_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the convolutional backward pass.                        #
     ###########################################################################
-    pass
+    x, w, b, conv_param = cache
+    N, C, H, W = x.shape
+    F, _, HH, WW = w.shape
+    dx = np.zeros_like(x)
+    dw = np.zeros_like(w)
+    db = np.zeros_like(b)
+    pad = conv_param['pad']
+    stride = conv_param['stride']
+    out_H = 1 + (H + 2 * pad - HH) // stride
+    out_W = 1 + (W + 2 * pad - WW) // stride
+
+    # db
+    for filter_index in range(F):
+        db[filter_index] += np.sum(dout[:, filter_index, :, :])
+
+    pad_dx = np.pad(dx, ((0, ), (0, ), (pad, ), (pad,)), mode='constant', constant_values=0)
+    pad_x = np.pad(x, ((0, ), (0, ), (pad, ), (pad,)), mode='constant', constant_values=0)
+    for sample_index in range(N):
+        sample = pad_x[sample_index]
+        for filter_index in range(F):
+            filter = w[filter_index]
+            for j in range(out_H):
+                for i in range(out_W):
+                    pad_window_center_i = stride * i + WW // 2
+                    pad_window_center_j = stride * j + HH // 2
+                    i0, i1 = pad_window_center_j - HH // 2, pad_window_center_j + HH - HH // 2
+                    j0, j1 = pad_window_center_i - WW // 2, pad_window_center_i + WW - WW // 2
+                    window = sample[:, i0:i1, j0:j1]
+
+                    dw[filter_index, :, :, :] += dout[sample_index][filter_index][j][i] * window
+                    pad_dx[sample_index, :, i0:i1, j0:j1] += dout[sample_index][filter_index][j][i] * filter
+    dx = pad_dx[:, :, pad:pad+H, pad:pad+W]
+
+    # # stretch
+    # linear_w = np.zeros((C * HH * WW, F))
+    # for filter_index in range(F):
+    #     linear_w[:, filter_index] = w[filter_index].reshape(-1)
+    # # W_reshape = w.reshape(F, -1)
+    # # print(W_reshape, '\n', linear_w)
+    # # assert W_reshape == linear_w
+    #
+    # linear_dout = np.zeros((N, out_H * out_W, F))
+    # linear_dx = np.zeros((N, H * W, C * HH * WW))
+    # print('fuck', linear_w.shape, linear_dout.shape, linear_dx.shape)
+    # for sample_index in range(N):
+    #     for filter_index in range(F):
+    #         linear_dout[sample_index, :, filter_index] = dout[sample_index, filter_index, :, :].reshape(-1)
+    # # print(linear_dout[0],'\n', dout[0])
+    #
+    # # dx
+    # for sample_index in range(N):
+    #     linear_dx[sample_index] = linear_dout[sample_index].dot(linear_w.T)
+    #
+    # for sample_index in range(N):
+    #     for i in range(C):
+    #         for row in range(H):
+    #             for col in range(W):
+    #                 dx[sample_index][i][row][col] = \
+    #                     np.sum(linear_dx[sample_index][row * W + col][i * HH * WW:(i + 1) * HH * WW])
+    #
+    # # dw
+    # linear_x = np.zeros((N, H*W, C*HH*WW))
+    # pad_x = np.pad(x, ((0, 0), (0, 0), (1, 1), (1, 1)), mode='constant', constant_values=0)
+    # # print(x.shape, w.shape)
+    # for sample_index in range(N):
+    #     sample = pad_x[sample_index]
+    #     for j in range(out_H):
+    #         for i in range(out_W):
+    #             pad_window_center_i = stride * i + WW // 2
+    #             pad_window_center_j = stride * j + HH // 2
+    #             i0, i1 = pad_window_center_j - HH // 2, pad_window_center_j + HH - HH // 2
+    #             j0, j1 = pad_window_center_i - WW // 2, pad_window_center_i + WW - WW // 2
+    #             # print(i0, i1, j0, j1)
+    #             # print('fuck', pad_window_center_i, pad_window_center_j, HH//2, WW//2, window.shape, filter.shape)
+    #             window = sample[:, i0:i1, j0:j1]
+    #             linear_x[sample_index][j * H + i][:] = window.reshape(-1)
+    #
+    # linear_dw = np.zeros((HH * WW * C, F))
+    # for sample_index in range(N):
+    #     linear_dw += linear_x[sample_index].T.dot(linear_dout[sample_index])
+    # for filter_index in range(F):
+    #     dw[filter_index] = linear_dw[:, filter_index].reshape(HH, WW, C)
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
