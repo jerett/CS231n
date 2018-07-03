@@ -75,7 +75,8 @@ def relu_forward(x):
     ###########################################################################
     # TODO: Implement the ReLU forward pass.                                  #
     ###########################################################################
-    pass
+    out = np.zeros_like(x)
+    out = np.maximum(x, 0)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -98,7 +99,8 @@ def relu_backward(dout, cache):
     ###########################################################################
     # TODO: Implement the ReLU backward pass.                                 #
     ###########################################################################
-    pass
+    dx = dout
+    dx[x < 0] = 0
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -515,7 +517,25 @@ def max_pool_forward_naive(x, pool_param):
     ###########################################################################
     # TODO: Implement the max pooling forward pass                            #
     ###########################################################################
-    pass
+    N, C, H, W = x.shape
+    F_W = pool_param['pool_width']
+    F_H = pool_param['pool_height']
+    F_stride = pool_param['stride']
+    out_W = (W - F_W) // F_stride + 1
+    out_H = (H - F_H) // F_stride + 1
+    out = np.zeros((N, C, out_H, out_W))
+    for n in range(N):
+        for j in range(out_H):
+            for i in range(out_W):
+                # x_i = i * F_stride
+                x_i = F_stride * i + F_W // 2
+                x_j = F_stride * j + F_H // 2
+                i0, i1 = x_i - F_W // 2, x_i + F_W - F_W // 2
+                j0, j1 = x_j - F_H // 2, x_j + F_H - F_H // 2
+                window = x[n, :, j0:j1, i0:i1]
+                # out[n, :, j, i] = np.amax(np.amax(window, axis=2), axis=1)
+                out[n, :, j, i] = np.amax(window, axis=(1, 2))
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -538,7 +558,29 @@ def max_pool_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the max pooling backward pass                           #
     ###########################################################################
-    pass
+    x, pool_param = cache
+    dx = np.zeros_like(x)
+    N, C, H, W = x.shape
+    F_W = pool_param['pool_width']
+    F_H = pool_param['pool_height']
+    F_stride = pool_param['stride']
+    out_W = (W - F_W) // F_stride + 1
+    out_H = (H - F_H) // F_stride + 1
+    for n in range(N):
+        for j in range(out_H):
+            for i in range(out_W):
+                # x_i = i * F_stride
+                x_i = F_stride * i + F_W // 2
+                x_j = F_stride * j + F_H // 2
+                i0, i1 = x_i - F_W // 2, x_i + F_W - F_W // 2
+                j0, j1 = x_j - F_H // 2, x_j + F_H - F_H // 2
+                window = x[n, :, j0:j1, i0:i1]
+                dx_window = dx[n, :, j0:j1, i0:i1]
+                for c in range(C):
+                    max_index = np.unravel_index(np.argmax(window[c], axis=None), window[c].shape)
+                    dx_window[c][max_index] = dout[n][c][j][i]
+                    # dx[n, :, j0:j1, i0:i1][max_index] = dout[j][i]
+                # out[n, :, j, i] = np.amax(np.amax(window, axis=2), axis=1)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
