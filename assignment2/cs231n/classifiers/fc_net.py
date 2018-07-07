@@ -121,6 +121,37 @@ class TwoLayerNet(object):
         return loss, grads
 
 
+def affine_bn_relu_forward(x, w, b, gamma, beta, bn_param):
+    """
+    Convenience layer that perorms an affine transform followed by a BN, and ReLU,
+
+    Inputs:
+    - x: Input to the affine layer
+    - w, b: Weights for the affine layer
+    - gamma, beta: Param for the bn operation
+
+    Returns a tuple of:
+    - out: Output from the ReLU
+    - cache: Object to give to the backward pass
+    """
+    a, fc_cache = affine_forward(x, w, b)
+    b, bn_cache = batchnorm_forward(a, gamma, beta, bn_param)
+    out, relu_cache = relu_forward(b)
+    cache = (fc_cache, bn_cache, relu_cache)
+    return out, cache
+
+
+def affine_bn_relu_backward(dout, cache):
+    """
+    Backward pass for the affine-bn-relu convenience layer
+    """
+    fc_cache, bn_cache, relu_cache = cache
+    da = relu_backward(dout, relu_cache)
+    db_nor, dgamma, dbeta = batchnorm_backward(da, bn_cache)
+    dx, dw, db = affine_backward(db_nor, fc_cache)
+    return dx, dw, db, dgamma, dbeta
+
+
 class FullyConnectedNet(object):
     """
     A fully-connected neural network with an arbitrary number of hidden layers,
@@ -182,12 +213,17 @@ class FullyConnectedNet(object):
         for i in range(self.num_layers):
             key_w = "W" + str(i+1)
             key_b = "b" + str(i+1)
-            if i == 0:
-                self.params[key_w] = weight_scale * np.random.randn(input_dim, hidden_dims[i])
+            if i < self.num_layers-1:
+                if i == 0:
+                    self.params[key_w] = weight_scale * np.random.randn(input_dim, hidden_dims[i])
+                else:
+                    self.params[key_w] = weight_scale * np.random.randn(hidden_dims[i-1], hidden_dims[i])
                 self.params[key_b] = np.zeros(hidden_dims[i])
-            elif i < self.num_layers-1:
-                self.params[key_w] = weight_scale * np.random.randn(hidden_dims[i-1], hidden_dims[i])
-                self.params[key_b] = np.zeros(hidden_dims[i])
+                if self.use_batchnorm:
+                    key_gamma = 'gamma' + str(i+1)
+                    key_beta = 'beta' + str(i+1)
+                    self.params[key_gamma] = np.ones((hidden_dims[i]))
+                    self.params[key_beta] = np.zeros((hidden_dims[i]))
             else:
                 self.params[key_w] = weight_scale * np.random.randn(hidden_dims[i-1], num_classes)
                 self.params[key_b] = np.zeros(num_classes)
@@ -254,12 +290,18 @@ class FullyConnectedNet(object):
         for i in range(self.num_layers):
             key_w = 'W' + str(i+1)
             key_b = 'b' + str(i+1)
-            key_cache = 'cache' + str(i+1)
             w, b = self.params[key_w], self.params[key_b]
             w_delta += self.reg * 0.5 * np.sum(w * w)
             cache = None
             if i < self.num_layers-1:
-                scores, cache = affine_relu_forward(scores, w, b)
+                if self.use_batchnorm:
+                    key_gamma = 'gamma' + str(i+1)
+                    key_beta = 'beta' + str(i+1)
+                    gamma = self.params[key_gamma]
+                    beta = self.params[key_beta]
+                    scores, cache = affine_bn_relu_forward(scores, w, b, gamma, beta, self.bn_params[i])
+                else:
+                    scores, cache = affine_relu_forward(scores, w, b)
             else:
                 scores, cache = affine_forward(scores, w, b)
             caches[i] = cache
@@ -296,12 +338,18 @@ class FullyConnectedNet(object):
         for i in reversed(range(self.num_layers)):
             key_w = 'W' + str(i+1)
             key_b = 'b' + str(i+1)
-            key_cache = 'cache' + str(i+1)
             cache = caches[i]
             w = self.params[key_w]
             # w, b = self.params[key_w], self.params[key_b]
             if i < self.num_layers-1:
-                dx, dw, db = affine_relu_backward(dx, cache)
+                if self.use_batchnorm:
+                    key_gamma = 'gamma' + str(i+1)
+                    key_beta = 'beta' + str(i+1)
+                    dx, dw, db, dgamma, dbeta = affine_bn_relu_backward(dx, cache)
+                    grads[key_gamma] = dgamma
+                    grads[key_beta] = dbeta
+                else:
+                    dx, dw, db = affine_relu_backward(dx, cache)
             else:
                 dx, dw, db = affine_backward(dx, cache)
             grads[key_b] = db

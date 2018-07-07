@@ -177,7 +177,19 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # variance, storing your result in the running_mean and running_var   #
         # variables.                                                          #
         #######################################################################
-        pass
+        cache = {}
+        sample_mean = np.mean(x, axis=0)
+        sample_var = np.var(x, axis=0)
+        running_mean = momentum * running_mean + (1 - momentum) * sample_mean
+        running_var = momentum * running_var + (1 - momentum) * sample_var
+        sample_std = np.sqrt(sample_var + eps)
+        x_nor = (x - sample_mean) / sample_std
+        out = gamma * x_nor + beta
+        cache['x_nor'] = x_nor
+        cache['gamma'] = gamma
+        cache['std'] = sample_std
+        cache['mean'] = sample_mean
+        cache['x'] = x
         #######################################################################
         #                           END OF YOUR CODE                          #
         #######################################################################
@@ -188,7 +200,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # then scale and shift the normalized data using gamma and beta.      #
         # Store the result in the out variable.                               #
         #######################################################################
-        pass
+        out = gamma * (x - running_mean) / np.sqrt(running_var + eps) + beta
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
@@ -224,7 +236,15 @@ def batchnorm_backward(dout, cache):
     # TODO: Implement the backward pass for batch normalization. Store the    #
     # results in the dx, dgamma, and dbeta variables.                         #
     ###########################################################################
-    pass
+    N, _ = cache['x'].shape
+    dbeta = np.sum(dout, axis=0)
+    dgamma = np.sum(cache['x_nor'] * dout, axis=0)
+    dx_nor = cache['gamma'] * dout
+    dx_minus_mean = 1.0 / cache['std'] * dx_nor
+    dx_std = np.sum((cache['x'] - cache['mean']) * (-1.0) / (cache['std'] ** 2) * dx_nor, axis=0)
+    dx_var = dx_std / cache['std'] / 2
+    dx_mean = -1.0 * np.sum(dx_minus_mean, axis=0) + np.sum(2 * (cache['mean'] - cache['x']), axis=0) * dx_var / N
+    dx = dx_minus_mean + dx_mean / N + 2 * (cache['x'] - cache['mean']) * dx_var / N
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -373,7 +393,7 @@ def conv_forward_naive(x, w, b, conv_param):
     out_W = 1 + (W + 2 * pad - WW) // stride
     out = np.zeros((N, F, out_H, out_W))
 
-    pad_x = np.pad(x, ((0, ), (0, ), (pad, ), (pad,)), mode='constant', constant_values=0)
+    pad_x = np.pad(x, ((0,), (0,), (pad,), (pad,)), mode='constant', constant_values=0)
     # print(x.shape, w.shape)
     for sample_index in range(N):
         sample = pad_x[sample_index]
@@ -396,7 +416,6 @@ def conv_forward_naive(x, w, b, conv_param):
     ###########################################################################
     cache = (x, w, b, conv_param)
     return out, cache
-
 
 
 def conv_backward_naive(dout, cache):
@@ -431,8 +450,8 @@ def conv_backward_naive(dout, cache):
     for filter_index in range(F):
         db[filter_index] += np.sum(dout[:, filter_index, :, :])
 
-    pad_dx = np.pad(dx, ((0, ), (0, ), (pad, ), (pad,)), mode='constant', constant_values=0)
-    pad_x = np.pad(x, ((0, ), (0, ), (pad, ), (pad,)), mode='constant', constant_values=0)
+    pad_dx = np.pad(dx, ((0,), (0,), (pad,), (pad,)), mode='constant', constant_values=0)
+    pad_x = np.pad(x, ((0,), (0,), (pad,), (pad,)), mode='constant', constant_values=0)
     for sample_index in range(N):
         sample = pad_x[sample_index]
         for filter_index in range(F):
@@ -447,7 +466,7 @@ def conv_backward_naive(dout, cache):
 
                     dw[filter_index, :, :, :] += dout[sample_index][filter_index][j][i] * window
                     pad_dx[sample_index, :, i0:i1, j0:j1] += dout[sample_index][filter_index][j][i] * filter
-    dx = pad_dx[:, :, pad:pad+H, pad:pad+W]
+    dx = pad_dx[:, :, pad:pad + H, pad:pad + W]
 
     # # stretch
     # linear_w = np.zeros((C * HH * WW, F))
