@@ -647,7 +647,17 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     # version of batch normalization defined above. Your implementation should#
     # be very short; ours is less than five lines.                            #
     ###########################################################################
-    pass
+    N, C, H, W = x.shape
+    out = np.zeros_like(x)
+    cache = {}
+    bn_caches = [None] * C
+    for i in range(C):
+        x_channel_reshape = x[:, i, :, :].reshape((N, -1))
+        bn_out, bn_cache = batchnorm_forward(x_channel_reshape, gamma[i], beta[i], bn_param)
+        out[:, i, :, :] = bn_out.reshape((N, H, W))
+        bn_caches[i] = bn_cache
+    cache['bn_cache'] = bn_caches
+    cache['x'] = x
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -677,7 +687,18 @@ def spatial_batchnorm_backward(dout, cache):
     # version of batch normalization defined above. Your implementation should#
     # be very short; ours is less than five lines.                            #
     ###########################################################################
-    pass
+    x, bn_caches = cache['x'], cache['bn_cache']
+    N, C, H, W = x.shape
+    dx = np.zeros_like(x)
+    dgamma = np.zeros(C)
+    dbeta = np.zeros(C)
+    for i in range(C):
+        bn_cache = bn_caches[i]
+        dout_channel_reshape = dout[:, i, :, :].reshape((N, -1))
+        bn_dx, bn_dgamma, bn_dbeta = batchnorm_backward(dout_channel_reshape, bn_cache)
+        dx[:, i, :, :] = bn_dx.reshape((N, H, W))
+        dgamma[i] = np.sum(bn_dgamma)
+        dbeta[i] = np.sum(bn_dbeta)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
