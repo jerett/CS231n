@@ -149,6 +149,18 @@ class CaptioningRNN(object):
             dwords_embeddings, dh0, grads['Wx'], grads['Wh'], grads['b'] = rnn_backward(dh, h_cache)
             grads['W_embed'] = word_embedding_backward(dwords_embeddings, words_embeddings_cache)
             _, grads['W_proj'], grads['b_proj'] = affine_backward(dh0, h0_cache)
+        if self.cell_type == 'lstm':
+            h0, h0_cache = affine_forward(features, W_proj, b_proj)
+            # h0 = np.dot(features, W_proj) + b_proj
+            words_embeddings, words_embeddings_cache = word_embedding_forward(captions_in, W_embed)
+            h, h_cache = lstm_forward(words_embeddings, h0, Wx, Wh, b)
+            scores, scores_cache = temporal_affine_forward(h, W_vocab, b_vocab)
+            loss, dx = temporal_softmax_loss(scores, captions_out, mask)
+
+            dh, grads['W_vocab'], grads['b_vocab'] = temporal_affine_backward(dx, scores_cache)
+            dwords_embeddings, dh0, grads['Wx'], grads['Wh'], grads['b'] = lstm_backward(dh, h_cache)
+            grads['W_embed'] = word_embedding_backward(dwords_embeddings, words_embeddings_cache)
+            _, grads['W_proj'], grads['b_proj'] = affine_backward(dh0, h0_cache)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -213,15 +225,24 @@ class CaptioningRNN(object):
         captions[:, 0] = self._start
         words_embedding, _ = word_embedding_forward(captions, W_embed)
         prev_h, _ = affine_forward(features, W_proj, b_proj)
+        prev_c = np.zeros_like(prev_h)
 
         for step in range(max_length-1):
             word_embedding = words_embedding[:, step, :]
-            h, _ = rnn_step_forward(word_embedding, prev_h, Wx, Wh, b)
-            scores, _ = affine_forward(h, W_vocab, b_vocab)
-            scores_max = np.argmax(scores, axis=1)
-            captions[:, step + 1] = scores_max
-            # captions[:, step+1] = word_embedding_forward(h, )
-            prev_h = h
+            if self.cell_type == 'rnn':
+                h, _ = rnn_step_forward(word_embedding, prev_h, Wx, Wh, b)
+                scores, _ = affine_forward(h, W_vocab, b_vocab)
+                scores_max = np.argmax(scores, axis=1)
+                captions[:, step + 1] = scores_max
+                # captions[:, step+1] = word_embedding_forward(h, )
+                prev_h = h
+            if self.cell_type == 'lstm':
+                h, prev_c, _ = lstm_step_forward(word_embedding, prev_h, prev_c, Wx, Wh, b)
+                scores, _ = affine_forward(h, W_vocab, b_vocab)
+                scores_max = np.argmax(scores, axis=1)
+                captions[:, step + 1] = scores_max
+                # captions[:, step+1] = word_embedding_forward(h, )
+                prev_h = h
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
