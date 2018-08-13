@@ -211,15 +211,14 @@ class CaptioningRNN(object):
         # a loop.                                                                 #
         ###########################################################################
         captions[:, 0] = self._start
+        words_embedding, _ = word_embedding_forward(captions, W_embed)
         prev_h, _ = affine_forward(features, W_proj, b_proj)
 
         for step in range(max_length-1):
-            word_embedding = W_embed[captions[:, step]]
-            # word_embedding = word_embedding_forward(captions[:, step].reshape((-1,1)), W_embed)[0][:,0,:]
+            word_embedding = words_embedding[:, step, :]
             h, _ = rnn_step_forward(word_embedding, prev_h, Wx, Wh, b)
             scores, _ = affine_forward(h, W_vocab, b_vocab)
             scores_max = np.argmax(scores, axis=1)
-            # print('fuck', scores_max)
             captions[:, step + 1] = scores_max
             # captions[:, step+1] = word_embedding_forward(h, )
             prev_h = h
