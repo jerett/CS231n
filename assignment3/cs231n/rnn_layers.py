@@ -207,8 +207,8 @@ def word_embedding_forward(x, W):
     #                                                                            #
     # HINT: This can be done in one line using NumPy's array indexing.           #
     ##############################################################################
-    N, T = x.shape
-    V, D = W.shape
+    # N, T = x.shape
+    # V, D = W.shape
     out = W[x]
     cache = (x, W, out)
     ##############################################################################
