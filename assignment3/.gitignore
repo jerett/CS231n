@@ -1,3 +1,5 @@
 *.swp
 *.pyc
 .env/*
+start_jupyter.sh
+nohup.out
